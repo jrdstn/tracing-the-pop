@@ -22,6 +22,12 @@ canvas{width:100%;height:100%;image-rendering:pixelated;display:block}
 #pad{display:none;gap:18px;align-items:center;justify-content:center;user-select:none;touch-action:none}
 #pad button{width:56px;height:56px;border-radius:12px;border:2px solid #fff;background:#000;color:#fff;font-size:22px}
 #dp{display:grid;grid-template-columns:repeat(3,56px);gap:4px}
+.ov{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:5;text-align:center;padding:12px;font-size:clamp(12px,2.4vw,20px)}
+.ov h1{margin:0;color:var(--ac);font-size:clamp(22px,6vw,48px)}
+.ov h2{margin:0;font-size:clamp(16px,4vw,28px)}
+.ov p{margin:0;line-height:1.5;max-width:80%}
+.ov button{width:min(60%,280px);background:#000;border:3px solid #fff;color:#fff;font:inherit;padding:8px;border-radius:8px;cursor:pointer}
+.ov button:hover,.ov button:focus-visible{border-color:var(--ac);color:var(--ac)}
 @media (pointer:coarse){#pad{display:flex}}
 </style>
 </head>
@@ -30,10 +36,15 @@ canvas{width:100%;height:100%;image-rendering:pixelated;display:block}
   <canvas id="c"></canvas>
   <div id="hud"></div>
   <div id="dlg"><div id="nm"></div><div id="tx"></div><div id="ch"></div><div id="hint">▼</div></div>
+  <div id="title" class="ov"><h1>Tracing the Pop!</h1><h2>Digital Museum</h2><button id="bStart">Start</button><button id="bCred">Credits</button></div>
+  <div id="cred" class="ov" style="display:none"><h2>Credits</h2><p>Tracing the Pop! Digital Museum<br>Group 13<br>Jessyryll Jane Irudistan<br>Angel Jet Advincula</p><p>Sources: (to be added in the final update)</p><button id="cBack">Back</button></div>
+  <div id="pause" class="ov" style="display:none"><h2>Paused</h2><button id="pCont">Continue</button><button id="pHelp">Help</button><button id="pMus">Music and sound: On</button><button id="pQuit">Quit</button></div>
+  <div id="help" class="ov" style="display:none"><h2>Help</h2><p id="hp"></p><button id="hBack">Back</button></div>
 </div>
 <div id="pad">
   <div id="dp"><span></span><button data-k="u">▲</button><span></span><button data-k="l">◀</button><span></span><button data-k="r">▶</button><span></span><button data-k="d">▼</button><span></span></div>
   <button id="abtn">A</button>
+  <button id="mbtn">☰</button>
 </div>
 
 <script>
@@ -43,7 +54,8 @@ cv.width=VW*T;cv.height=VH*T;
 const $=id=>document.getElementById(id);
 const PALS=[{g:"#62b84a",g2:"#4e9e3a",fl:["#ffffff","#ffd84a","#ff8fb0"],p:"#dcc79a",p2:"#bba879"}];
 let PAL=PALS[0];
-const SOLID="tblSWNBTHU.OVKPYCXEAGQ";
+PALS.push({...PALS[0],fc:"#b98a5a",fd:"#9a6e44",wc:"#e8c8a0",wd:"#c9a47a"},{...PALS[0],fc:"#9aa0b0",fd:"#7e8498",wc:"#cfdbe8",wd:"#aebdd0"});
+const SOLID="tblSWNBTHU.OVKPYCXEAGQuhaj";
 const V={u:[0,-1],d:[0,1],l:[-1,0],r:[1,0]};
 const OPP={u:"d",d:"u",l:"r",r:"l"};
 
@@ -74,6 +86,7 @@ const L={
   c2:{h:"#1a1a1a",s:"#e8b88a",t:"#8a8a8a",p:"#4a3a2a"}
 };
 
+const INFO={t:["The leaves rustle softly.","A big tree gives nice shade."],b:["This bench looks comfortable."],l:["The light is flickering.","The street lamp hums quietly."],N:["You can see the street outside."],P:["The plant looks well cared for."],X:["A sturdy wooden table."],T:["A sturdy wooden counter."],E:["A wooden chair."],B:["A soft bed. Maybe a nap later?"],O:["The sofa looks very comfy."],K:["A shelf full of books and knickknacks."],A:["The electric fan keeps the room cool."],W:["Just a wall."],H:["A freshly painted wall."],h:["A freshly painted wall."],j:["A freshly painted wall."],V:["An old TV."],G:["A computer with a humming fan."],M:["A pair of tsinelas by the door."],R:["A soft rug."],Y:["A framed photo."],C:["A wall calendar."]};
 const KS=[["#1a1a1a","#f1c27d","#e0533a","#2a3a6a"],["#4a2a18","#c68642","#3ec0b0","#3a3a3a"],["#2a1a12","#e8b88a","#f2b630","#4a3a6a"],["#3a2418","#f1c27d","#9a6ab0","#2a2a4a"],["#1a1a1a","#c68642","#d9577a","#5a4a3a"]].map(a=>({h:a[0],s:a[1],t:a[2],p:a[3]}));
 /* ===== SCENES ===== */
 const GO=["I’m not sure, but keep walking and you may find out!"];
@@ -90,7 +103,7 @@ S.hood={pal:0,w:20,h:15,
   m:mk(20,15,"g",[["t",0,0,20,1],["t",0,14,20,1],["U",1,2,5,1],["H",1,3,5,2],["D",3,4],["p",3,5,1,3],["p",0,7,20,2],
     ["l",6,6],["l",15,6],["b",9,6],["b",9,10],["t",2,10],["t",5,12],["t",16,11],["t",17,3],["t",12,3],["t",8,12]]),
   warps:{"3,4":["home",9,10,"u"]},
-  left:"credits",right:"street",
+  right:"street",
   npcs:[
    {x:6,y:10,d:"r",l:L.kidG,n:"Mia",f:()=>talk("Mia",["Did you hear? Our Lola says people used text messages to gather at EDSA in 2001!","Everyone got a message to go and wear black. Texting is so powerful!"])},
    {x:7,y:10,d:"l",l:L.kidB,n:"Paolo",f:()=>talk("Paolo",["I traded two of my cards for a Pokémon card today!","Now I’m saving my allowance to rent a computer at the internet café."])},
@@ -128,11 +141,11 @@ const pcMenu=()=>menu("Computer","The computer is free. What do you want to look
 S.block1={pal:0,w:38,h:15,
   m:mk(38,15,"g",[["t",0,0,38,1],["t",0,14,38,1],["p",0,6,38,4],
    ["U",4,2,8,1],["H",4,3,8,3],["Q",7,5],["C",10,5],
-   ["U",15,2,8,1],["H",15,3,8,3],["D",18,5],
-   ["U",26,2,8,1],["H",26,3,8,3],["D",29,5],
+   ["u",15,3,6,1],["h",15,4,6,2],["D",17,5],
+   ["a",24,1,10,1],["j",24,2,10,4],["D",28,5],
    ["l",13,11],["l",24,11],["t",3,12],["t",35,12],["t",20,12],["b",8,12],["b",30,12]]),
-  warps:{"18,5":["lolaHouse",9,10,"u"],"29,5":["cafe",9,10,"u"]},
-  labels:[{x:8,y:2.75,t:"ATE MELODY’S STORE"},{x:19,y:2.75,t:"LOLA ROSA’S HOUSE"},{x:30,y:2.75,t:"INTERNET CAFÉ"}],
+  warps:{"17,5":["lolaHouse",9,10,"u"],"28,5":["cafe",9,10,"u"]},
+  labels:[{x:8,y:2.75,t:"ATE MELODY’S STORE"},{x:18,y:3.75,t:"LOLA ROSA’S HOUSE"},{x:29,y:1.75,t:"INTERNET CAFÉ"}],
   left:"street",noRight:"The road keeps going, but this part of the game is still being built.",
   npcs:[
    {x:2,y:7,k:"sign",n:"Sign",f:()=>talk("Sign",["Don’t forget to check the calendar in each area!","Every place has one that tells you its year."])},
@@ -140,15 +153,15 @@ S.block1={pal:0,w:38,h:15,
    {x:9,y:7,d:"l",l:L.c2,n:"Ramon",f:()=>talk("Ramon",["Everyone at school has a Nokia now. Some even have colored covers!","Everybody buys their prepaid load here.","Ask Ate Melody for more information."])},
    {x:7,y:5,k:"obj",f:()=>{if(!G.flags.met){G.flags.met=1;talk("Ate Melody",["Oh, hello there! Come closer to the window, I can hear you from here."],storeMenu)}else storeMenu()}},
    calObj(10,5,2000,"A whole new millennium!")]};
-S.lolaHouse={pal:0,w:20,h:15,
+S.lolaHouse={pal:1,w:20,h:15,
   m:mk(20,15,".",ROOM.concat([["C",9,2],["Y",12,2],["V",11,3],["A",15,3],["K",7,3],["R",10,4,4,2],["O",11,6,2,1],["E",5,8],["X",6,8,2,1],["E",8,8],["P",4,10],["P",15,8],["M",10,10]])),
-  warps:{"9,11":["block1",18,6,"d"]},
+  warps:{"9,11":["block1",17,6,"d"]},
   npcs:[{x:8,y:6,d:"d",l:L.rosa,n:"Lola Rosa",f:()=>talk("Lola Rosa",["Hello, apo! Do you want to watch TV?","Press the button on that old television. Many good shows are on today!"])},
    calObj(9,2,2005,"Reality shows and fantaserye are everywhere."),
    {x:11,y:3,k:"obj",f:tvMenu}]};
-S.cafe={pal:0,w:20,h:15,
+S.cafe={pal:2,w:20,h:15,
   m:mk(20,15,".",ROOM.concat([["G",5,3],["G",7,3],["G",9,3],["G",11,3],["G",5,6],["G",7,6],["G",9,6],["C",14,2],["P",15,3],["P",4,10],["P",15,10]])),
-  warps:{"9,11":["block1",29,6,"d"]},
+  warps:{"9,11":["block1",28,6,"d"]},
   npcs:[kid(5,4,0,"I’m on level 80 in Ragnarok! Don’t bother me!"),
    kid(7,4,1,"Shh, I’m in the middle of a DotA match."),
    kid(9,4,2,"My cousins and I play Counter-Strike here every Saturday."),
@@ -171,7 +184,7 @@ function momTalk(){
 }
 
 /* ===== STATE ===== */
-const G={sc:"home",p:{tx:9,ty:9,nx:9,ny:9,t:0,mv:false,d:"u"},mode:"play",flags:{},fade:0,q:[],sel:0};
+const G={sc:"home",p:{tx:9,ty:9,nx:9,ny:9,t:0,mv:false,d:"u"},mode:"title",flags:{},fade:0,q:[],sel:0};
 const held=[];
 
 /* ===== DIALOGUE ===== */
@@ -183,7 +196,7 @@ function nextLine(){
   if(!G.q.length){end();return}
   show(G.nm);$("ch").innerHTML="";$("hint").style.display="none";
   G.full=G.q.shift();G.i=0;$("tx").textContent="";clearInterval(typing);
-  typing=setInterval(()=>{G.i++;$("tx").textContent=G.full.slice(0,G.i);if(G.i>=G.full.length)finish()},22);
+  typing=setInterval(()=>{G.i++;$("tx").textContent=G.full.slice(0,G.i);if(G.i%2===0)sfx("blip");if(G.i>=G.full.length)finish()},22);
 }
 function finish(){clearInterval(typing);G.i=G.full.length;$("tx").textContent=G.full;$("hint").style.display="block"}
 function end(){clearInterval(typing);$("dlg").style.display="none";G.mode="play";const d=G.done;G.done=null;if(d)d()}
@@ -198,8 +211,8 @@ function renderChoices(){
     b.onmouseenter=()=>setSel(i);b.onclick=e=>{e.stopPropagation();pick(i)};box.appendChild(b);
   });
 }
-function setSel(i){G.sel=i;[...$("ch").children].forEach((b,j)=>{b.className=j===i?"sel":""})}
-function pick(i){const o=G.opts[i];$("ch").innerHTML="";$("tx").textContent="";o.f()}
+function setSel(i){if(i!==G.sel)sfx("sel");G.sel=i;[...$("ch").children].forEach((b,j)=>{b.className=j===i?"sel":""})}
+function pick(i){sfx("ok");const o=G.opts[i];$("ch").innerHTML="";$("tx").textContent="";o.f()}
 function menu(n,p,items){choose(n,p,items.map(i=>({t:i.t,f:()=>{if(i.a)i.a();talk(n,i.l,()=>menu(n,p,items))}})).concat([{t:"Bye!",f:end}]))}
 
 /* ===== MOVEMENT ===== */
@@ -223,7 +236,7 @@ function tryMove(d){
 }
 function arrive(){
   const sc=S[G.sc],w=sc.warps&&sc.warps[G.p.tx+","+G.p.ty];
-  if(w)go(w[0],w[1],w[2],w[3]);
+  if(w){sfx("door");go(w[0],w[1],w[2],w[3])}else sfx("step");
 }
 function update(dt){
   const p=G.p;
@@ -234,9 +247,12 @@ function update(dt){
 function act(){
   if(G.mode==="talk"){if(G.i<G.full.length)finish();else nextLine();return}
   if(G.mode==="choose"){pick(G.sel);return}
+  if(G.mode!=="play")return;
   const p=G.p,sc=S[G.sc];if(p.mv)return;
   const n=npcAt(sc,p.tx+V[p.d][0],p.ty+V[p.d][1]);
-  if(n){if(!n.k)n.d=OPP[p.d];n.f()}
+  if(n){if(!n.k)n.d=OPP[p.d];n.f();return}
+  const fx=p.tx+V[p.d][0],fy=p.ty+V[p.d][1];
+  if(fy>=0&&fy<sc.h&&fx>=0&&fx<sc.w){const I=INFO[sc.m[fy][fx]];if(I)talk("",[I[(fx*3+fy)%I.length]])}
 }
 
 /* ===== DRAWING ===== */
@@ -254,11 +270,11 @@ function tile(ch,x,y,tx,ty){
   if(ch==="t"){f("#7a4a24",6,10,4,5);f("#2f7a34",2,1,12,10);f("#3f9a44",3,2,10,8);f("#6fc46c",5,3,3,2)}
   if(ch==="b"){f("#7a4a24",2,10,2,4);f("#7a4a24",12,10,2,4);f("#b9722f",1,6,14,4);f("#d99a58",1,6,14,1)}
   if(ch==="l"){f("#333",7,5,2,10);f("#555",5,13,6,2);f("#ffe27a",5,1,6,5);f("#fff6c0",6,2,2,2)}
-  if(ch==="U"){f("#b33a3a",0,0,16,16);f("#8f2a2a",0,5,16,1);f("#8f2a2a",0,11,16,1)}
-  if(ch==="H"){f("#e9c98a",0,0,16,16);f("#cfa966",0,7,16,1);f("#8ac4e8",4,3,8,5)}
+  if("Uua".includes(ch)){const rc=ch==="U"?["#b33a3a","#8f2a2a"]:ch==="u"?["#2e8a5a","#1f6a42"]:["#4a6a9a","#34507a"];f(rc[0],0,0,16,16);f(rc[1],0,5,16,1);f(rc[1],0,11,16,1)}
+  if("Hhj".includes(ch)){const wc=ch==="H"?["#e9c98a","#cfa966"]:ch==="h"?["#a8d0e0","#86b4c8"]:["#f0f0f0","#d0d0d0"];f(wc[0],0,0,16,16);f(wc[1],0,7,16,1);f("#8ac4e8",4,3,8,5)}
   if("FRBTDWNOVKPYCXEAMG".includes(ch)){
-    if("WNCY".includes(ch)){f("#e8d9b5",0,0,16,16);f("#cbb98f",0,13,16,3)}
-    else{f("#c99a63",0,0,16,16);f("#b3834f",0,7,16,1)}
+    if("WNCY".includes(ch)){f(P.wc||"#e8d9b5",0,0,16,16);f(P.wd||"#cbb98f",0,13,16,3)}
+    else{f(P.fc||"#c99a63",0,0,16,16);f(P.fd||"#b3834f",0,7,16,1)}
     if(ch==="N"){f("#8ac4e8",3,3,10,7);f("#c0453f",2,2,3,9);f("#c0453f",11,2,3,9)}
     if(ch==="C"){f("#fff",3,2,10,11);f("#d33",3,2,10,3);f("#333",5,7,6,1);f("#333",5,9,6,1)}
     if(ch==="Y"){f("#7a4a24",3,3,10,9);f("#9ad0e8",4,4,8,7);f("#e8b88a",6,6,2,2);f("#e8b88a",9,6,2,2)}
@@ -328,6 +344,7 @@ function press(d){
 function release(d){const i=held.indexOf(d);if(i>-1)held.splice(i,1)}
 addEventListener("keydown",e=>{
   const k=e.key.toLowerCase();
+  if(k==="escape"){if(G.mode==="pause")closePause();else openPause();return}
   if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k))e.preventDefault();
   if(KM[k]){if(!e.repeat)press(KM[k])}
   else if(e.repeat)return;
@@ -344,7 +361,35 @@ document.querySelectorAll("#dp button").forEach(b=>{
 $("abtn").addEventListener("pointerdown",e=>{e.preventDefault();act()});
 
 /* ===== START ===== */
-talk("Welcome",["Welcome to Tracing the Pop! Digital Museum.","Move with W, A, S, D or the arrow keys. Press E, Space, Enter, or click to talk and interact.","Talk to everyone you meet, and remember you can always walk back to the left."]);
+function begin(){talk("Welcome",["Welcome to Tracing the Pop! Digital Museum.","Move with W, A, S, D or the arrow keys. Press E, Space, Enter, or click to talk and interact.","Talk to everyone you meet, and remember you can always walk back to the left."])}
+/* ===== AUDIO ===== */
+const AU={c:null,on:true,t:null,i:0};
+const TRK=[{ms:260,mel:[72,0,76,0,79,0,76,0,74,0,77,0,81,0,77,0,72,0,76,0,79,0,84,0,83,0,79,0,76,0,0,0],bas:[48,0,55,0,53,0,57,0,48,0,55,0,53,0,55,0]}];
+const hz=n=>440*Math.pow(2,(n-69)/12);
+function tone(f,d,ty,v,del){const x=AU.c;if(!x||!AU.on)return;const o=x.createOscillator(),g=x.createGain(),t0=x.currentTime+(del||0);o.type=ty;o.frequency.value=f;g.gain.setValueAtTime(v,t0);g.gain.exponentialRampToValueAtTime(.0001,t0+d);o.connect(g);g.connect(x.destination);o.start(t0);o.stop(t0+d+.02)}
+function sfx(k){
+  if(k==="blip")tone(260+Math.random()*60,.05,"square",.03);
+  if(k==="sel")tone(660,.05,"square",.04);
+  if(k==="ok"){tone(520,.06,"square",.05);tone(780,.08,"square",.05,.07)}
+  if(k==="door"){tone(200,.12,"triangle",.1);tone(300,.14,"triangle",.1,.1)}
+  if(k==="step")tone(90,.04,"triangle",.05);
+}
+function musicTick(){const t=TRK[0],m=t.mel[AU.i%t.mel.length],b=t.bas[Math.floor(AU.i/2)%t.bas.length];if(m)tone(hz(m),.22,"square",.025);if(b&&AU.i%2===0)tone(hz(b),.45,"triangle",.05);AU.i++}
+function audioInit(){if(!AU.c)AU.c=new(window.AudioContext||window.webkitAudioContext)();AU.c.resume();if(!AU.t)AU.t=setInterval(musicTick,TRK[0].ms)}
+
+/* ===== TITLE AND PAUSE ===== */
+const vis=(id,v)=>{$(id).style.display=v?"flex":"none"};
+$("bStart").onclick=()=>{audioInit();vis("title",0);G.mode="play";begin()};
+$("bCred").onclick=()=>{vis("title",0);vis("cred",1)};
+$("cBack").onclick=()=>{vis("cred",0);vis("title",1)};
+function openPause(){if(G.mode!=="play")return;held.length=0;G.mode="pause";vis("pause",1)}
+function closePause(){vis("pause",0);vis("help",0);if(G.mode==="pause")G.mode="play"}
+$("pCont").onclick=closePause;
+$("pHelp").onclick=()=>{$("hp").innerHTML="Move: W A S D or the arrow keys.<br>Talk and interact: E, Space, Enter, or click.<br>Pause: Esc or the ☰ button.<br><br>"+($("hud").textContent||"Goal: Explore and talk to everyone.");vis("pause",0);vis("help",1)};
+$("hBack").onclick=()=>{vis("help",0);vis("pause",1)};
+$("pMus").onclick=()=>{AU.on=!AU.on;$("pMus").textContent="Music and sound: "+(AU.on?"On":"Off")};
+$("pQuit").onclick=()=>location.reload();
+$("mbtn").onclick=()=>{if(G.mode==="pause")closePause();else openPause()};
 requestAnimationFrame(loop);
 </script>
 </body>
