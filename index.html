@@ -3,24 +3,475 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Digital Game Museum</title>
-<link rel="stylesheet" href="css/style.css">
+<title>Tracing the Pop! Digital Game Museum</title>
+<style>
+:root{--ac:#ffd84a}
+html,body{margin:0;height:100%;background:#000;color:#fff;font-family:"Courier New",monospace}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+#game{position:relative;width:min(100vw,calc((100vh - 12px) * 4 / 3),960px);aspect-ratio:4/3;background:#000;border:3px solid #444;border-radius:6px;overflow:hidden}
+canvas{width:100%;height:100%;image-rendering:pixelated;display:block}
+#hud{position:absolute;top:6px;left:6px;max-width:72%;background:#000;border:2px solid #fff;border-radius:6px;padding:4px 8px;font-size:clamp(10px,1.9vw,15px);display:none}
+#dlg{position:absolute;left:2%;right:2%;bottom:3%;background:#000;border:3px solid #fff;border-radius:8px;padding:10px 14px;display:none;font-size:clamp(12px,2.5vw,21px);line-height:1.4}
+#nm{color:var(--ac);font-weight:bold;margin-bottom:4px}
+#hint{text-align:right;color:var(--ac);display:none}
+#ch{position:absolute;right:0;bottom:100%;margin-bottom:10px;display:flex;flex-direction:column;gap:6px;min-width:42%}
+#ch button{display:block;width:100%;text-align:left;white-space:pre;background:#000;border:3px solid #fff;color:#fff;font:inherit;padding:6px 12px;cursor:pointer;border-radius:8px}
+#ch button::before{content:"  "}
+#ch button.sel{border-color:var(--ac);color:var(--ac)}
+#ch button.sel::before{content:"▶ "}
+#pad{display:none;gap:18px;align-items:center;justify-content:center;user-select:none;touch-action:none}
+#pad button{width:56px;height:56px;border-radius:12px;border:2px solid #fff;background:#000;color:#fff;font-size:22px}
+#dp{display:grid;grid-template-columns:repeat(3,56px);gap:4px}
+#pic{display:none;position:absolute;left:0;bottom:100%;margin-bottom:10px;width:min(44%,300px);background:#000;border:3px solid #fff;border-radius:8px;overflow:hidden}
+#pic svg{display:block;width:100%;height:auto}
+#pic .cap{font-size:.7em;padding:3px 6px;text-align:center;color:#ddd}
+.ov{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:5;text-align:center;padding:12px;font-size:clamp(12px,2.4vw,20px)}
+.ov h1{margin:0;color:var(--ac);font-size:clamp(22px,6vw,48px)}
+.ov h2{margin:0;font-size:clamp(16px,4vw,28px)}
+.ov p{margin:0;line-height:1.5;max-width:80%}
+.ov button{width:min(60%,280px);background:#000;border:3px solid #fff;color:#fff;font:inherit;padding:8px;border-radius:8px;cursor:pointer}
+.ov button:hover,.ov button:focus-visible{border-color:var(--ac);color:var(--ac)}
+@media (pointer:coarse){#pad{display:flex}}
+</style>
 </head>
 <body>
 <div id="game">
   <canvas id="c"></canvas>
   <div id="hud"></div>
   <div id="dlg"><div id="pic"></div><div id="nm"></div><div id="tx"></div><div id="ch"></div><div id="hint">▼</div></div>
-  <div id="title" class="ov"></div>
-  <div id="cred" class="ov" style="display:none"></div>
-  <div id="pause" class="ov" style="display:none"></div>
-  <div id="help" class="ov" style="display:none"></div>
+  <div id="title" class="ov"><h1>Tracing the Pop!</h1><h2>Digital Game Museum</h2><button id="bStart">Start</button><button id="bCred">Credits</button></div>
+  <div id="cred" class="ov" style="display:none"><h2>Credits</h2><p>Tracing the Pop! Digital Game Museum<br>Group 13<br>Jessyryll Jane Irudistan<br>Angel Jet Advincula</p><p>Sources: (to be added in the final update)</p><button id="cBack">Back</button></div>
+  <div id="pause" class="ov" style="display:none"><h2>Paused</h2><button id="pCont">Continue</button><button id="pHelp">Help</button><button id="pMus">Music and sound: On</button><button id="pQuit">Quit</button></div>
+  <div id="help" class="ov" style="display:none"><h2>Help</h2><p id="hp"></p><button id="hBack">Back</button></div>
 </div>
 <div id="pad">
   <div id="dp"><span></span><button data-k="u">▲</button><span></span><button data-k="l">◀</button><span></span><button data-k="r">▶</button><span></span><button data-k="d">▼</button><span></span></div>
   <button id="abtn">A</button>
   <button id="mbtn">☰</button>
 </div>
-<script type="module" src="./js/main.js"></script>
+
+<script>
+/* ===== SETUP ===== */
+const T=16,VW=20,VH=15,cv=document.getElementById("c"),c=cv.getContext("2d");
+cv.width=VW*T;cv.height=VH*T;
+const $=id=>document.getElementById(id);
+const PALS=[{g:"#62b84a",g2:"#4e9e3a",fl:["#ffffff","#ffd84a","#ff8fb0"],p:"#dcc79a",p2:"#bba879"}];
+let PAL=PALS[0];
+PALS.push({...PALS[0],g:"#58a85a",g2:"#468f4a",p:"#a4aab2",p2:"#868c96"},{...PALS[0],fc:"#c8ccd2",fd:"#aab0b8",wc:"#f4f4f4",wd:"#d8dce0"});
+PALS.push({...PALS[0],fc:"#b98a5a",fd:"#9a6e44",wc:"#e8c8a0",wd:"#c9a47a"},{...PALS[0],fc:"#9aa0b0",fd:"#7e8498",wc:"#cfdbe8",wd:"#aebdd0"});
+const SOLID="tblSWNBTHU.OVKPYCXEAGQuhajwkz";
+const V={u:[0,-1],d:[0,1],l:[-1,0],r:[1,0]};
+const OPP={u:"d",d:"u",l:"r",r:"l"};
+
+/* ===== MAP BUILDER: ["ch",x,y] = one tile, ["ch",x,y,w,h] = rectangle ===== */
+function mk(w,h,base,ops){
+  const m=Array.from({length:h},()=>Array(w).fill(base));
+  ops.forEach(o=>{
+    if(o.length===3){m[o[2]][o[1]]=o[0]}
+    else{for(let y=o[2];y<o[2]+o[4];y++)for(let x=o[1];x<o[1]+o[3];x++)m[y][x]=o[0]}
+  });
+  return m;
+}
+
+/* ===== LOOKS ===== */
+const L={
+  me:{h:"#1c2b5a",s:"#e8b88a",t:"#3a78d8",p:"#5a4a3a",band:1},
+  mom:{h:"#3a2418",s:"#e8b88a",t:"#d9577a",p:"#4a3a6a",long:1},
+  kidG:{h:"#2a1a12",s:"#c68642",t:"#ff8fb0",p:"#3a4a8a",long:1},
+  kidB:{h:"#1a1a1a",s:"#f1c27d",t:"#f2b630",p:"#2a3a6a"},
+  lolo:{h:"#d0d0d0",s:"#c68642",t:"#6b8e5a",p:"#5a4a3a"},
+  lola:{h:"#d8d8d8",s:"#e8b88a",t:"#9a6ab0",p:"#4a3a4a",long:1},
+  ben:{h:"#2a1a12",s:"#f1c27d",t:"#e0e0e0",p:"#2a2a4a"},
+  joy:{h:"#4a2a18",s:"#c68642",t:"#3ec0b0",p:"#2a3a5a",long:1},
+  mel:{h:"#2a1a12",s:"#e8b88a",t:"#e0533a",p:"#4a3a6a",long:1},
+  rosa:{h:"#d8d8d8",s:"#c68642",t:"#c9a0dc",p:"#4a3a4a",long:1},
+  rey:{h:"#1a1a1a",s:"#c68642",t:"#2e7d4f",p:"#3a3a3a"},
+  c1:{h:"#3a2418",s:"#f1c27d",t:"#e0533a",p:"#2a3a6a"},
+  c2:{h:"#1a1a1a",s:"#e8b88a",t:"#8a8a8a",p:"#4a3a2a"}
+};
+
+const INFO={t:["The leaves rustle softly.","A big tree gives nice shade."],b:["This bench looks comfortable."],l:["The light is flickering.","The street lamp hums quietly."],N:["You can see the street outside."],P:["The plant looks well cared for."],X:["A sturdy wooden table."],T:["A sturdy wooden counter."],E:["A wooden chair."],B:["A soft bed. Maybe a nap later?"],O:["The sofa looks very comfy."],K:["A shelf full of books and knickknacks."],A:["The electric fan keeps the room cool."],W:["Just a wall."],H:["A freshly painted wall."],h:["A freshly painted wall."],j:["A freshly painted wall."],V:["An old TV."],G:["A computer with a humming fan."],M:["A pair of tsinelas by the door."],R:["A soft rug."],Y:["A framed photo."],C:["A wall calendar."]};
+const KS=[["#1a1a1a","#f1c27d","#e0533a","#2a3a6a"],["#4a2a18","#c68642","#3ec0b0","#3a3a3a"],["#2a1a12","#e8b88a","#f2b630","#4a3a6a"],["#3a2418","#f1c27d","#9a6ab0","#2a2a4a"],["#1a1a1a","#c68642","#d9577a","#5a4a3a"]].map(a=>({h:a[0],s:a[1],t:a[2],p:a[3]}));
+/* ===== SCENES ===== */
+const GO=["I’m not sure, but keep walking and you may find out!"];
+const S={};
+S.home={pal:0,w:20,h:15,
+  m:mk(20,15,".",[["W",3,2,14,10],["F",4,3,12,8],["B",4,3,2,1],["K",7,3],["V",11,3],["A",15,3],["N",6,2],["C",9,2],["Y",11,2],["Y",12,2],["N",14,2],["R",10,4,4,2],["O",11,6,2,1],["E",5,8],["X",6,8,2,1],["E",8,8],["P",4,10],["P",15,8],["M",10,10],["D",9,11]]),
+  warps:{"9,11":["hood",3,5,"d"]},
+  npcs:[{x:8,y:6,d:"d",l:L.mom,n:"Mom",f:momTalk},
+   {x:9,y:2,k:"obj",f:()=>talk("Calendar",["It’s the year 2000. A whole new millennium!"])},
+   {x:11,y:3,k:"obj",f:()=>talk("TV",["An old TV with an antenna. Nothing good is on right now."])},
+   {x:12,y:2,k:"obj",f:()=>talk("Photo",["A family picture. Everyone is smiling."])},
+   {x:6,y:8,k:"obj",f:()=>talk("Phone",["Mom’s Nokia is on the table. It’s almost out of load."])}]};
+S.hood={pal:0,w:20,h:15,
+  m:mk(20,15,"g",[["t",0,0,20,1],["t",0,14,20,1],["U",1,2,5,1],["H",1,3,5,2],["w",2,3],["w",4,3],["D",3,4],["p",3,5,1,3],["p",0,7,20,2],
+    ["l",6,6],["l",15,6],["b",9,6],["b",9,10],["t",2,10],["t",5,12],["t",16,11],["t",17,3],["t",12,3],["t",8,12]]),
+  warps:{"3,4":["home",9,10,"u"]},
+  right:"street",
+  npcs:[
+   {x:6,y:10,d:"r",l:L.kidG,n:"Mia",f:()=>talk("Mia",["Did you hear? Our Lola says people used text messages to gather at EDSA in 2001!","Everyone got a message to go and wear black. Texting is so powerful!"])},
+   {x:7,y:10,d:"l",l:L.kidB,n:"Paolo",f:()=>talk("Paolo",["I traded two of my cards for a Pokémon card today!","Now I’m saving my allowance to rent a computer at the internet café."])},
+   {x:12,y:6,d:"r",l:L.lolo,n:"Lolo",f:()=>talk("Lolo",["Everyone has a cellphone now. In my day we wrote letters.","Now it’s text, text, text! They even call us the texting capital of the world."])},
+   {x:13,y:6,d:"l",l:L.lola,n:"Lola",f:()=>talk("Lola",["Every noon, the whole barangay watches Eat Bulaga! together.","And when Manny Pacquiao fights, the whole street goes quiet!"])}]};
+S.street={pal:0,w:20,h:15,
+  m:mk(20,15,"g",[["t",0,0,20,1],["t",0,14,20,1],["p",0,6,20,4],["l",4,5],["l",12,5],["l",18,5],["l",8,10],["t",2,11],["t",15,11],["t",6,2],["t",14,2]]),
+  left:"hood",right:"block1",
+  npcs:[
+   {x:7,y:6,d:"d",l:L.ben,n:"Kuya Ben",f:()=>menu("Kuya Ben","What do you think will happen in the future?",[
+     {t:"2000s",l:["Right now everybody is texting and renting computers at the internet café. I think that will keep going!"].concat(GO)},
+     {t:"2005s",l:["Maybe even more reality shows and foreign dramas on TV. Everyone loves them!"].concat(GO)},
+     {t:"2010s",l:["I think by then, everyone will have a touchscreen phone."].concat(GO)},
+     {t:"2015s",l:["Maybe we’ll watch shows and chat with our friends on our phones all day."].concat(GO)}])},
+   {x:13,y:9,d:"u",l:L.joy,n:"Ate Joy",f:()=>menu("Ate Joy","What do you think will happen in the future?",[
+     {t:"2020s",l:["Maybe school and work will happen online? That sounds strange, but who knows."].concat(GO)},
+     {t:"2025s",l:["Maybe we’ll pay for everything with our phones. No more coins!"].concat(GO)},
+     {t:"2030s",l:["Maybe computers will talk to us and help with everything, like in the movies!"].concat(GO)}])}]};
+function kid(x,y,i,line){return {x,y,d:"u",l:KS[i],n:"Kid",f:()=>talk("Kid",[line])}}
+const calObj=(x,y,yr,txt,gid,need)=>({x,y,k:"obj",f:()=>{G.cal[yr]=1;talk("Calendar",["The calendar says "+yr+". "+txt]);if(gid&&need.every(v=>G.cal[v]))doneGoal(gid)}});
+const ROOM=[["W",3,2,14,10],["F",4,3,12,8],["N",6,2],["N",14,2],["D",9,11]];
+const IMGS={
+load:[`<svg viewBox="0 0 160 100"><defs><linearGradient id="a1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f26a4b"/><stop offset="1" stop-color="#c0392b"/></linearGradient><linearGradient id="a2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e6e9ee"/><stop offset="1" stop-color="#9ca3ad"/></linearGradient></defs><rect width="160" height="100" fill="#dfe6ee"/><rect x="10" y="14" width="96" height="66" rx="7" fill="url(#a1)"/><rect x="10" y="14" width="96" height="14" rx="7" fill="#a52f20"/><text x="18" y="25" font-family="Arial" font-size="9" font-weight="bold" fill="#fff">PREPAID LOAD</text><rect x="20" y="38" width="54" height="24" rx="3" fill="url(#a2)"/><path d="M20 50h54M34 38v24M48 38v24M62 38v24" stroke="#8b929c" stroke-width=".8"/><text x="82" y="62" font-family="Arial" font-size="16" font-weight="bold" fill="#fff">₱50</text><polygon points="116,34 140,34 148,42 148,76 116,76" fill="#d4ac45" stroke="#8a6a20"/><rect x="124" y="46" width="16" height="16" rx="2" fill="#f2d57a" stroke="#a8842e" stroke-width=".8"/><path d="M124 54h16M132 46v16" stroke="#a8842e" stroke-width=".8"/></svg>`,"Prepaid load card and SIM (illustration)"],
+nokia:[`<svg viewBox="0 0 160 100"><rect width="160" height="100" fill="#dfe6ee"/><rect x="52" y="4" width="56" height="94" rx="14" fill="#33415c" stroke="#5b6b8c" stroke-width="2"/><rect x="60" y="14" width="40" height="28" rx="3" fill="#a5d493"/><text x="64" y="30" font-family="Courier New" font-size="8" fill="#2d4a2a">Hi! :) 1 new</text><rect x="66" y="46" width="28" height="8" rx="4" fill="#6f7fa0"/><g fill="#8794b3"><rect x="62" y="58" width="10" height="7" rx="2"/><rect x="75" y="58" width="10" height="7" rx="2"/><rect x="88" y="58" width="10" height="7" rx="2"/><rect x="62" y="68" width="10" height="7" rx="2"/><rect x="75" y="68" width="10" height="7" rx="2"/><rect x="88" y="68" width="10" height="7" rx="2"/><rect x="62" y="78" width="10" height="7" rx="2"/><rect x="75" y="78" width="10" height="7" rx="2"/><rect x="88" y="78" width="10" height="7" rx="2"/></g></svg>`,"Early 2000s mobile phone (illustration)"],
+tv:[`<svg viewBox="0 0 160 100"><rect width="160" height="100" fill="#dfe6ee"/><path d="M80 24L56 4M80 24L106 6" stroke="#444" stroke-width="2"/><rect x="26" y="24" width="108" height="68" rx="10" fill="#7a6650"/><rect x="34" y="31" width="76" height="54" rx="9" fill="#26323f"/><rect x="38" y="35" width="10" height="46" fill="#e8d44a"/><rect x="48" y="35" width="10" height="46" fill="#4ac0c8"/><rect x="58" y="35" width="10" height="46" fill="#5ac05a"/><rect x="68" y="35" width="10" height="46" fill="#c85ac0"/><rect x="78" y="35" width="10" height="46" fill="#d85a4a"/><rect x="88" y="35" width="18" height="46" fill="#4a5ad8"/><circle cx="122" cy="46" r="6" fill="#3d3225"/><circle cx="122" cy="64" r="6" fill="#3d3225"/><rect x="40" y="38" width="30" height="8" rx="4" fill="#fff" opacity=".25"/></svg>`,"CRT television (illustration)"],
+fs:[`<svg viewBox="0 0 160 100"><rect width="160" height="100" fill="#cfd8e6"/><rect x="8" y="6" width="144" height="88" rx="4" fill="#fff"/><rect x="8" y="6" width="144" height="16" rx="4" fill="#4a78b8"/><text x="16" y="17" font-family="Arial" font-size="8" font-weight="bold" fill="#fff">My Profile</text><rect x="14" y="28" width="30" height="30" rx="3" fill="#e8b88a"/><circle cx="29" cy="40" r="7" fill="#c98a5a"/><rect x="19" y="48" width="20" height="10" rx="3" fill="#4a78b8"/><rect x="52" y="30" width="60" height="5" fill="#333"/><rect x="52" y="40" width="90" height="3" fill="#aaa"/><rect x="52" y="47" width="80" height="3" fill="#aaa"/><text x="14" y="70" font-family="Arial" font-size="7" font-weight="bold" fill="#4a78b8">Testimonials</text><rect x="14" y="74" width="60" height="14" rx="2" fill="#eef2f8"/><rect x="80" y="74" width="60" height="14" rx="2" fill="#eef2f8"/></svg>`,"Friendster-style profile page (illustration)"],
+game:[`<svg viewBox="0 0 160 100"><rect width="160" height="100" fill="#cfd8e6"/><rect x="18" y="6" width="124" height="74" rx="5" fill="#333"/><rect x="24" y="12" width="112" height="62" fill="#7fc4e8"/><path d="M24 54Q60 36 92 50T136 46V74H24Z" fill="#5aa84a"/><circle cx="46" cy="40" r="6" fill="#f5c542"/><rect x="40" y="46" width="12" height="14" rx="2" fill="#c0392b"/><rect x="92" y="52" width="12" height="14" rx="2" fill="#3a78d8"/><circle cx="98" cy="46" r="6" fill="#e8b88a"/><rect x="38" y="30" width="16" height="3" fill="#4ac04a"/><rect x="90" y="40" width="16" height="3" fill="#4ac04a"/><rect x="28" y="64" width="60" height="8" fill="#000" opacity=".5"/><text x="30" y="70" font-family="Courier New" font-size="5" fill="#fff">Party: Level 80</text><rect x="62" y="82" width="36" height="6" fill="#555"/><rect x="48" y="88" width="64" height="6" rx="2" fill="#777"/></svg>`,"Online game screen (illustration)"],
+gcash:[`<svg viewBox="0 0 160 100"><rect width="160" height="100" fill="#dfe6ee"/><rect x="50" y="4" width="60" height="94" rx="10" fill="#222"/><rect x="54" y="10" width="52" height="82" rx="6" fill="#1f6fe0"/><text x="58" y="22" font-family="Arial" font-size="7" font-weight="bold" fill="#fff">E-Wallet</text><text x="58" y="34" font-family="Arial" font-size="10" font-weight="bold" fill="#fff">₱ 1,250</text><g fill="#fff"><rect x="58" y="42" width="20" height="18" rx="3"/><rect x="82" y="42" width="20" height="18" rx="3"/><rect x="58" y="64" width="20" height="18" rx="3"/><rect x="82" y="64" width="20" height="18" rx="3"/></g><g font-family="Arial" font-size="5" fill="#1f6fe0" text-anchor="middle"><text x="68" y="53">Send</text><text x="92" y="53">Load</text><text x="68" y="75">Pay</text><text x="92" y="75">Scan</text></g></svg>`,"E-wallet app screen (illustration)"],
+stream:[`<svg viewBox="0 0 160 100"><rect width="160" height="100" fill="#dfe6ee"/><rect x="14" y="8" width="132" height="74" rx="6" fill="#222"/><rect x="20" y="14" width="120" height="62" fill="#111"/><rect x="26" y="40" width="24" height="32" fill="#c0392b"/><rect x="54" y="40" width="24" height="32" fill="#2a7ab8"/><rect x="82" y="40" width="24" height="32" fill="#8e44ad"/><rect x="110" y="40" width="24" height="32" fill="#d4a017"/><circle cx="80" cy="26" r="9" fill="#fff" opacity=".9"/><polygon points="77,21 77,31 86,26" fill="#c0392b"/><rect x="60" y="82" width="40" height="5" fill="#555"/><rect x="48" y="87" width="64" height="5" rx="2" fill="#777"/></svg>`,"Streaming screen (illustration)"],
+mgame:[`<svg viewBox="0 0 160 100"><rect width="160" height="100" fill="#dfe6ee"/><rect x="22" y="18" width="116" height="64" rx="10" fill="#222"/><rect x="28" y="23" width="104" height="54" rx="6" fill="#3b7a4a"/><path d="M28 50Q60 40 80 52T132 46" stroke="#c9b27a" stroke-width="8" fill="none"/><circle cx="52" cy="38" r="5" fill="#e0533a"/><circle cx="96" cy="58" r="5" fill="#3a78d8"/><rect x="30" y="25" width="22" height="3" fill="#4ac04a"/><circle cx="44" cy="66" r="9" fill="#fff" opacity=".35"/><circle cx="118" cy="64" r="6" fill="#fff" opacity=".45"/><circle cx="108" cy="70" r="4" fill="#fff" opacity=".35"/><rect x="108" y="26" width="22" height="16" fill="#000" opacity=".45"/></svg>`,"Mobile game screen (illustration)"]
+};
+
+/* ----- 2000-2010 menus ----- */
+const storeMenu=()=>{G.flags.m1=1;doneGoal("melody");chk();menu("Ate Melody","What would you like to know, or buy?",[
+  {t:"Buy prepaid load",a:()=>{G.flags.load=1;doneGoal("load");addGoal("home","Take the load home to Mom (walk back to the left).")},l:[{t:"Here is the prepaid load for your mom.",i:"load"},"Prepaid service took off after Globe introduced it in 1998. You don’t need a monthly bill. You just buy load and top up whenever you have money.","That is why most mobile users were on prepaid plans. In 2001, about 85 percent of Globe’s subscribers were prepaid."]},
+  {t:"Why is everyone texting?",l:["Texting is cheap. In the early 2000s, one text cost about one peso, and promos made it even cheaper.",{t:"In 2001, one report said the Philippines handled about 50 million of the world’s 300 million daily text messages. By 2008, estimates reached around 1.39 billion texts a day.",i:"nokia"},"That is why people call us the texting capital of the world. We send greetings, jokes, love messages, and news."]},
+  {t:"What’s popular right now?",a:()=>addGoal("tv","Visit Lola Rosa’s house next door and watch TV."),l:[{t:"Phones are status symbols too. In one early survey, most people owned a Nokia, and the 3310 was the most common model.",i:"nokia"},"Ringtones, picture messages, and logos are popular add-ons that people pay for through text.","In the evenings, everyone crowds around the TV. Visit Lola Rosa in the house next door!"]}])};
+const tvMenu=()=>{G.flags.t1=1;doneGoal("tv");chk();menu("TV","What do you want to watch?",[
+  {t:"Noontime variety shows",l:["Eat Bulaga! has been on air since 1979, making it the longest-running noontime show in the Philippines. In the 2000s, it and shows like Wowowee and It’s Showtime filled the lunch hour.",{t:"Viewers watched dance numbers, games, and big prize giveaways. Families, barangay halls, and eateries gathered to watch together.",i:"tv"},"Viewers could also join the fun by sending text messages, mixing TV with the texting craze."]},
+  {t:"Fantaserye",l:["Fantaserye mixes fantasy with melodrama. Encantadia and Mulawin are big hits.",{t:"Costumes and computer effects are new for local TV, so audiences are amazed. Families watch together during primetime.",i:"tv"},"Fans talk about the shows the next day at school and at work."]},
+  {t:"Cartoons and anime",l:["After school, kids rush home to watch Pokémon, Dragon Ball Z, Naruto, and Cartoon Network shows.",{t:"Many are dubbed in Filipino or English. Kids trade cards and act out the attacks on the playground.",i:"tv"},"These shows make anime and cartoons part of childhood for many kids."]},
+  {t:"Asianovela",l:["Taiwanese and Korean dramas are everywhere. Meteor Garden made F4 super famous.",{t:"Fans copy the hairstyles and fashion. It is a sign that Asian dramas are becoming a big part of Philippine TV.",i:"tv"},"Some say this is only the beginning of a Korean wave that will grow in the years to come."]}])};
+const pcMenu=()=>{G.flags.p1=1;doneGoal("pc");chk();menu("Computer","The computer is free. What do you want to look up?",[
+  {t:"Internet cafés",l:["Internet cafés spread in the 2000s because few homes had reliable internet. They quickly became places to socialize, especially for multiplayer games like DotA.",{t:"People pay by the hour, so everyone is always watching the clock.",i:"game"},"Many students come after school, and some stay until late at night."]},
+  {t:"Online games",l:["Ragnarok Online, DotA, and Counter-Strike fill the internet cafés. Friends team up and play together.",{t:"Amateur tournaments for games like DotA and Counter-Strike are held in cafés, funded by local shop owners.",i:"game"},"Cafés are not just for playing. They are where friends meet."]},
+  {t:"Social sites",l:["Friendster was founded in 2002 and became hugely popular in the Philippines, roughly from 2003 to 2007. Internet cafés filled with people customizing profiles and writing testimonials.",{t:"By 2009, Facebook was growing fast and Friendster was losing users. Friendster was sold to MOL Global in December 2009.",i:"fs"},"Social sites are a new way to show who you are online."]}])};
+S.block1={pal:0,w:38,h:15,
+  m:mk(38,15,"g",[["t",0,0,38,1],["t",0,14,38,1],["p",0,6,38,4],
+   ["U",4,2,8,1],["H",4,3,8,3],["w",5,4],["w",9,4],["Q",7,5],["C",10,5],
+   ["u",15,3,6,1],["h",15,4,6,2],["k",16,4],["k",19,4],["D",17,5],
+   ["a",24,1,10,1],["j",24,2,10,4],["z",26,3],["z",30,3],["z",32,3],["D",28,5],
+   ["l",13,11],["l",24,11],["t",3,12],["t",35,12],["t",20,12],["b",8,12],["b",30,12]]),
+  warps:{"17,5":["lolaHouse",9,10,"u"],"28,5":["cafe",9,10,"u"]},
+  labels:[{x:8,y:2.75,t:"ATE MELODY’S STORE"},{x:18,y:3.75,t:"LOLA ROSA’S HOUSE"},{x:29,y:1.75,t:"INTERNET CAFÉ"}],
+  left:"street",right:"block2",
+  npcs:[
+   {x:2,y:7,k:"sign",n:"Sign",f:()=>{addGoal("cal","Check the calendar in each place (store, house, café).");talk("Sign",["Don’t forget to check the calendar in each area!","Every place has one that tells you its year."])}},
+   {x:4,y:8,w:1,d:"r",l:L.c1,n:"Jun",f:()=>{addGoal("melody","Talk to Ate Melody at her store window.");talk("Jun",["Texting is so cheap now! I send more than fifty messages a day.","My friends and I even have txtmates we have never met.","Ask Ate Melody for more information."])}},
+   {x:10,y:8,w:1,d:"l",l:L.c2,n:"Ramon",f:()=>{addGoal("melody","Talk to Ate Melody at her store window.");talk("Ramon",["Everyone at school has a Nokia now. Some even have colored covers!","Everybody buys their prepaid load here.","Ask Ate Melody for more information."])}},
+   {x:7,y:5,k:"obj",f:()=>{if(!G.flags.met){G.flags.met=1;talk("Ate Melody",["Oh, hello there! Come closer to the window, I can hear you from here."],storeMenu)}else storeMenu()}},
+   calObj(10,5,2000,"A whole new millennium!","cal",[2000,2005,2010])]};
+S.lolaHouse={pal:3,w:20,h:15,
+  m:mk(20,15,".",ROOM.concat([["C",9,2],["Y",12,2],["V",11,3],["A",15,3],["K",7,3],["R",10,4,4,2],["O",11,6,2,1],["E",5,8],["X",6,8,2,1],["E",8,8],["P",4,10],["P",15,8],["M",10,10]])),
+  warps:{"9,11":["block1",17,6,"d"]},
+  npcs:[{x:8,y:6,w:1,d:"d",l:L.rosa,n:"Lola Rosa",f:()=>talk("Lola Rosa",["Hello, apo! Do you want to watch TV?","Press the button on that old television. Many good shows are on today!"])},
+   calObj(9,2,2005,"Reality shows and fantaserye are everywhere.","cal",[2000,2005,2010]),
+   {x:11,y:3,k:"obj",f:tvMenu}]};
+S.cafe={pal:4,w:20,h:15,
+  m:mk(20,15,".",ROOM.concat([["G",5,3],["G",7,3],["G",9,3],["G",11,3],["G",5,6],["G",7,6],["G",9,6],["C",14,2],["P",15,3],["P",4,10],["P",15,10]])),
+  warps:{"9,11":["block1",28,6,"d"]},
+  npcs:[kid(5,4,0,"I’m on level 80 in Ragnarok! Don’t bother me!"),
+   kid(7,4,1,"Shh, I’m in the middle of a DotA match."),
+   kid(9,4,2,"My cousins and I play Counter-Strike here every Saturday."),
+   kid(5,7,3,"I’m updating my Friendster page. Look at all my testimonials!"),
+   kid(7,7,4,"The rental is by the hour, so I’m watching the clock."),
+   kid(9,7,0,"I’m checking Facebook. It feels like everyone is on it now."),
+   {x:14,y:6,w:1,d:"l",l:L.rey,n:"Kuya Rey",f:()=>{addGoal("pc","Use the free computer in the internet café.");talk("Kuya Rey",["Welcome to the internet café! We rent computers by the hour.","All the computers are taken except the one in the corner. Go ahead and try it!"])}},
+   {x:11,y:3,k:"obj",f:pcMenu},
+   calObj(14,2,2010,"Facebook and mobile phones are changing everything.","cal",[2000,2005,2010])]};
+
+/* ----- 2015-2025 menus ----- */
+const storeMenu2=()=>{G.flags.m2=1;doneGoal("melody2");chk();menu("Ate Melody","Welcome back! What would you like to know, or buy?",[
+  {t:"Buy load with GCash",l:[{t:"These days you can buy load right on your phone with an e-wallet like GCash. Customers still come to me to cash in and cash out.",i:"gcash"},"GCash launched in 2004 and became the app people know in 2012. QR payments arrived in 2017, and during the pandemic in 2020 its growth exploded.","One report counts about 94 million GCash users by 2023. Sari-sari stores like mine are now cash points too."]},
+  {t:"Do people still text?",l:["Not like before. Chat apps and social media took over, and Facebook became the main social network for Filipinos.","In late 2015, Filipinos spent nearly four hours a day on social media, the highest in the Asia-Pacific region, and over three hours a day on mobile internet.","Texting is still used for important notices from banks and government agencies."]},
+  {t:"What changed since 2000?",l:["Back then, I sold prepaid cards. Now many customers pay by phone, and I help with load, cash-in, and bills payment.","The store is still where neighbors meet and talk, even if the way people pay has changed."]}])};
+const tvMenu2=()=>{G.flags.t2=1;doneGoal("tv2");chk();menu("TV","What do you want to watch?",[
+  {t:"Streaming arrives",l:["HOOQ began operating in the Philippines in February 2015, and Netflix launched in the country in January 2016. Soon people could watch shows on demand instead of waiting for TV schedules.",{t:"In 2020, many people stayed home during lockdowns and streamed even more.",i:"stream"},"Netflix reported that K-drama viewing among Filipinos grew by 350 percent in 2020."]},
+  {t:"K-dramas",l:["K-dramas became a huge hit. Titles like Crash Landing on You and Itaewon Class were popular during the lockdown.","An expert said their success comes from creative storytelling, aggressive promotion, and loyal fan bases.",{t:"The craze grew from the Asianovela boom of the 2000s, so the past really led to the present.",i:"stream"}]},
+  {t:"Noontime shows",l:["Noontime shows are still part of daily life. Eat Bulaga! has been on since 1979, and shows like It’s Showtime still bring Filipinos together at lunchtime.",{t:"Many shows also post clips online, so you can watch your favorite moments anytime.",i:"stream"}]},
+  {t:"Anime and local shows",l:["Anime is still loved. Netflix said Filipinos enjoy K-dramas, young-adult shows, and anime.","Local networks have streaming apps too, like iWantTFC, which offers local shows and dubbed Asian dramas."]}])};
+const pcMenu2=()=>{G.flags.p2=1;doneGoal("pc2");chk();menu("Computer","The computer is free. What do you want to look up?",[
+  {t:"Mobile games",l:["Internet cafés are smaller now. Many players moved to phones, and the pandemic pushed even more people toward mobile.","Mobile Legends: Bang Bang is the most played mobile game in the country, with a pro league called MPL Philippines.",{t:"One report said it was the leading mobile game app in the Philippines in 2023, with about 10 million downloads.",i:"mgame"},"Internet cafés are still around for PC games, but phones are where most people play."]},
+  {t:"Internet cafés today",l:["Internet cafés are declining because of mobile gaming and widespread internet. Many started in the 2000s when few homes had good internet and became places to socialize.",{t:"Some survive by offering strong PCs, and online role-playing games remain popular in cafés.",i:"game"}]},
+  {t:"Esports",l:["Esports in the Philippines began in internet cafés, with amateur DotA, League of Legends, and Counter-Strike tournaments run by shop owners.",{t:"Today Mobile Legends has a pro league, and Filipino teams like Bren Esports made names in international tournaments.",i:"mgame"}]}])};
+S.block2={pal:1,w:38,h:15,ac:"#3ee6e0",
+  m:mk(38,15,"g",[["t",0,0,38,1],["t",0,14,38,1],["p",0,6,38,4],
+   ["a",4,2,8,1],["j",4,3,8,3],["z",5,4],["z",9,4],["Q",7,5],["C",10,5],
+   ["u",15,2,8,1],["h",15,3,8,3],["k",16,4],["k",21,4],["D",18,5],
+   ["U",27,3,6,1],["H",27,4,6,2],["w",28,4],["w",31,4],["D",29,5],
+   ["l",13,11],["l",25,11],["l",35,11],["t",3,12],["t",20,12],["t",36,12],["b",8,12],["b",30,12]]),
+  warps:{"18,5":["lolaHouse2",9,10,"u"],"29,5":["cafe2",9,10,"u"]},
+  labels:[{x:8,y:2.75,t:"ATE MELODY’S STORE"},{x:19,y:2.75,t:"LOLA ROSA’S HOUSE"},{x:30,y:3.75,t:"INTERNET CAFÉ"}],
+  left:"block1",noRight:"The road keeps going, but this part of the game is still being built.",
+  enter:()=>{if(!G.flags.b2){G.flags.b2=1;addGoal("explore2","Visit the store window, Lola Rosa’s house, and the café again.");talk("",["A few years later..."])}},
+  npcs:[
+   {x:2,y:7,k:"sign",n:"Sign",f:()=>{addGoal("cal2","Check the calendar in each place again.");talk("Sign",["The calendars are still in each place.","Check them to see how many years have passed."])}},
+   {x:4,y:8,w:1,d:"r",l:L.c1,n:"Teen",f:()=>{addGoal("melody2","Talk to Ate Melody at her store window.");talk("Teen",["I just bought load on my phone. No more lining up!","But Ate Melody still helps me cash in. Ask her for more information."])}},
+   {x:10,y:8,w:1,d:"l",l:L.c2,n:"Teen",f:()=>{addGoal("melody2","Talk to Ate Melody at her store window.");talk("Teen",["My group chat is always active. We hardly text anymore.","Ask Ate Melody for more information."])}},
+   {x:7,y:5,k:"obj",f:()=>storeMenu2()},
+   calObj(10,5,2015,"Facebook and smartphones are everywhere.","cal2",[2015,2020,2025])]};
+S.lolaHouse2={pal:2,w:20,h:15,ac:"#3ee6e0",
+  m:mk(20,15,".",ROOM.concat([["C",9,2],["Y",12,2],["V",11,3],["K",7,3],["R",10,4,4,2],["O",11,6,2,1],["E",5,8],["X",6,8,2,1],["E",8,8],["P",4,10],["P",15,3],["M",10,10]])),
+  warps:{"9,11":["block2",18,6,"d"]},
+  npcs:[{x:8,y:6,w:1,d:"d",l:L.rosa,n:"Lola Rosa",f:()=>{addGoal("tv2","Watch TV in Lola Rosa’s house.");talk("Lola Rosa",["Hello, apo! You’ve grown so much!","The TV is a flat screen now. Press the button to see what’s on."])}},
+   calObj(9,2,2020,"Many people stayed home and streamed more shows.","cal2",[2015,2020,2025]),
+   {x:11,y:3,k:"obj",f:tvMenu2}]};
+S.cafe2={pal:4,w:20,h:15,ac:"#3ee6e0",
+  m:mk(20,15,".",[["W",5,4,10,8],["F",6,5,8,6],["N",7,4],["N",12,4],["D",9,11],["G",7,5],["G",9,5],["G",11,5],["C",13,4],["P",6,10]]),
+  warps:{"9,11":["block2",29,6,"d"]},
+  npcs:[kid(7,6,0,"I mostly play Mobile Legends on my phone now. This place is just for PC games."),
+   kid(9,6,1,"I’m here for the PC games. Most of my friends play on their phones."),
+   {x:12,y:8,w:1,d:"l",l:L.rey,n:"Kuya Rey",f:()=>{addGoal("pc2","Use the free computer in the internet café.");talk("Kuya Rey",["Welcome! It is quieter here than it used to be.","People are playing mobile games more. Go to the computer to find out more."])}},
+   {x:11,y:5,k:"obj",f:pcMenu2},
+   calObj(13,4,2025,"Mobile games are everywhere.","cal2",[2015,2020,2025])]};
+S.credits={pal:0,w:20,h:15,
+  m:mk(20,15,"g",[["t",0,0,20,1],["t",0,14,20,1],["p",0,7,20,2],["t",3,3],["t",16,3],["t",3,11],["t",16,11]]),
+  right:"hood",enter:creditsTalk,
+  npcs:[{x:10,y:6,k:"sign",n:"Sign",f:creditsTalk}]};
+function creditsTalk(){talk("Credits",["Tracing the Pop! Digital Museum","Made by Group 13","Jessyryll Jane Irudistan","Angel Jet Advincula","Sources: (to be added)","Thanks for playing! Walk right to return to the start of the journey."])}
+function momTalk(){
+  if(G.flags.load){doneGoal("home");talk("Mom",["You got the load! Thank you, sweetie.","Now I can finally text your Tita about the weekend."]);return}
+  const first=!G.flags.asked;G.flags.asked=1;
+  addGoal("load","Buy prepaid load at Ate Melody’s store (walk right).");
+  talk("Mom",first?["Good morning, sweetie! Could you do me a favor?","Please buy some prepaid load for my phone at Ate Melody’s store. I need to text your Tita about the weekend.","Go outside and walk to the right. It’s a little far, so take your time!"]:["Ate Melody’s store is down the road to the right.","Take your time, sweetie!"]);
+}
+
+/* ===== STATE ===== */
+const G={sc:"home",p:{tx:9,ty:9,nx:9,ny:9,t:0,mv:false,d:"u"},mode:"title",goals:[],cal:{},flags:{},fade:0,q:[],sel:0};
+const held=[];
+
+/* ===== DIALOGUE ===== */
+let typing=null;
+function hudDraw(){const a=G.goals.filter(g=>!g.d).slice(-3),h=$("hud");if(!a.length){h.style.display="none";return}h.innerHTML="Goals<br>"+a.map(g=>"• "+g.t).join("<br>");h.style.display="block"}
+function addGoal(id,t){if(!G.goals.find(g=>g.id===id)){G.goals.push({id,t,d:0});hudDraw()}}
+function doneGoal(id){const g=G.goals.find(g=>g.id===id);if(g&&!g.d){g.d=1;hudDraw();sfx("ok")}}
+function chk(){const f=G.flags;if(f.m1&&f.t1&&f.p1&&!f.ok1){f.ok1=1;doneGoal("explore");addGoal("right","Walk right to see how things changed a few years later.")}if(f.m2&&f.t2&&f.p2&&!f.ok2){f.ok2=1;doneGoal("explore2");addGoal("right2","Keep walking right.")}}
+function show(name){$("dlg").style.display="block";$("nm").textContent=name}
+function talk(name,lines,done){G.mode="talk";G.q=lines.slice();G.nm=name;G.done=done||null;nextLine()}
+function nextLine(){
+  if(!G.q.length){end();return}
+  show(G.nm);$("ch").innerHTML="";$("hint").style.display="none";
+  const ln=G.q.shift();G.full=typeof ln==="string"?ln:ln.t;if(ln.i&&IMGS[ln.i]){$("pic").innerHTML=IMGS[ln.i][0]+'<div class="cap">'+IMGS[ln.i][1]+"</div>";$("pic").style.display="block"}G.i=0;$("tx").textContent="";clearInterval(typing);
+  typing=setInterval(()=>{G.i++;$("tx").textContent=G.full.slice(0,G.i);if(G.i%2===0)sfx("blip");if(G.i>=G.full.length)finish()},22);
+}
+function finish(){clearInterval(typing);G.i=G.full.length;$("tx").textContent=G.full;$("hint").style.display="block"}
+function end(){clearInterval(typing);$("dlg").style.display="none";$("pic").style.display="none";G.mode="play";const d=G.done;G.done=null;if(d)d()}
+function choose(name,prompt,opts){
+  G.mode="choose";G.opts=opts;G.sel=0;show(name);clearInterval(typing);$("pic").style.display="none";
+  $("tx").textContent=prompt;$("hint").style.display="none";renderChoices();
+}
+function renderChoices(){
+  const box=$("ch");box.innerHTML="";
+  G.opts.forEach((o,i)=>{
+    const b=document.createElement("button");b.textContent=o.t;b.className=i===G.sel?"sel":"";
+    b.onmouseenter=()=>setSel(i);b.onclick=e=>{e.stopPropagation();pick(i)};box.appendChild(b);
+  });
+}
+function setSel(i){if(i!==G.sel)sfx("sel");G.sel=i;[...$("ch").children].forEach((b,j)=>{b.className=j===i?"sel":""})}
+function pick(i){sfx("ok");const o=G.opts[i];$("ch").innerHTML="";$("tx").textContent="";o.f()}
+function menu(n,p,items){choose(n,p,items.map(i=>({t:i.t,f:()=>{if(i.a)i.a();talk(n,i.l,()=>menu(n,p,items))}})).concat([{t:"Bye!",f:end}]))}
+
+/* ===== MOVEMENT ===== */
+function solidAt(sc,x,y){return SOLID.includes(sc.m[y][x])}
+function npcAt(sc,x,y){return (sc.npcs||[]).find(n=>(n.x===x&&n.y===y)||(n.mv&&n.nx===x&&n.ny===y))}
+function go(id,x,y,d){
+  G.sc=id;document.documentElement.style.setProperty("--ac",S[id].ac||"#ffd84a");const p=G.p;p.tx=p.nx=x;p.ty=p.ny=y;p.d=d;p.mv=false;p.t=0;G.fade=1;
+  if(id==="street")addGoal("walk","Talk to the people on the street, then keep walking right.");if(id==="block1"){doneGoal("walk");addGoal("explore","Visit the store window, Lola Rosa’s house, and the café.")}
+  const sc=S[id];if(sc.enter)sc.enter();
+}
+function tryMove(d){
+  const p=G.p,sc=S[G.sc];p.d=d;
+  const nx=p.tx+V[d][0],ny=p.ty+V[d][1];
+  if(nx<0||nx>=sc.w){
+    const to=nx<0?sc.left:sc.right;
+    if(to)go(to,nx<0?S[to].w-1:0,p.ty,d);
+    else if(nx>=sc.w&&sc.noRight){held.length=0;talk("",[sc.noRight])}
+    return;
+  }
+  if(ny<0||ny>=sc.h||solidAt(sc,nx,ny)||npcAt(sc,nx,ny))return;
+  p.nx=nx;p.ny=ny;p.mv=true;p.t=0;
+}
+function npcMove(dt){
+  if(G.mode!=="play")return;
+  const sc=S[G.sc],p=G.p;
+  (sc.npcs||[]).forEach(n=>{
+    if(!n.w)return;
+    if(n.mv){n.t+=dt/0.35;if(n.t>=1){n.x=n.nx;n.y=n.ny;n.mv=false;n.t=0}return}
+    if(n.cd===undefined){n.cd=Math.random()*2;n.hx=n.x;n.hy=n.y}
+    n.cd-=dt;if(n.cd>0)return;n.cd=1+Math.random()*3;
+    const d="udlr"[Math.floor(Math.random()*4)],nx=n.x+V[d][0],ny=n.y+V[d][1];
+    if(Math.abs(nx-n.hx)>n.w||Math.abs(ny-n.hy)>n.w||nx<0||ny<0||nx>=sc.w||ny>=sc.h)return;
+    if(solidAt(sc,nx,ny)||sc.m[ny][nx]==="D"||npcAt(sc,nx,ny))return;
+    if((p.tx===nx&&p.ty===ny)||(p.mv&&p.nx===nx&&p.ny===ny))return;
+    n.d=d;n.mv=true;n.nx=nx;n.ny=ny;n.t=0;
+  });
+}
+function arrive(){
+  const sc=S[G.sc],w=sc.warps&&sc.warps[G.p.tx+","+G.p.ty];
+  if(w){sfx("door");go(w[0],w[1],w[2],w[3])}else sfx("step");
+}
+function update(dt){
+  const p=G.p;
+  if(G.fade>0)G.fade-=dt*3;
+  npcMove(dt);
+  if(p.mv){p.t+=dt/0.16;if(p.t>=1){p.tx=p.nx;p.ty=p.ny;p.mv=false;p.t=0;arrive()}}
+  if(!p.mv&&G.mode==="play"&&held.length)tryMove(held[held.length-1]);
+}
+function act(){
+  if(G.mode==="talk"){if(G.i<G.full.length)finish();else nextLine();return}
+  if(G.mode==="choose"){pick(G.sel);return}
+  if(G.mode!=="play")return;
+  const p=G.p,sc=S[G.sc];if(p.mv)return;
+  const n=npcAt(sc,p.tx+V[p.d][0],p.ty+V[p.d][1]);
+  if(n){if(!n.k)n.d=OPP[p.d];n.f();return}
+  const fx=p.tx+V[p.d][0],fy=p.ty+V[p.d][1];
+  if(fy>=0&&fy<sc.h&&fx>=0&&fx<sc.w){const I=INFO[sc.m[fy][fx]];if(I)talk("",[I[(fx*3+fy)%I.length]])}
+}
+
+/* ===== DRAWING ===== */
+function tile(ch,x,y,tx,ty){
+  const h=(tx*7+ty*13)%11,P=PAL;
+  const f=(col,a,b,w,hh)=>{c.fillStyle=col;c.fillRect(x+a,y+b,w,hh)};
+  if(ch==="."){f("#000",0,0,16,16);return}
+  if(ch==="Q"){f("#e9c98a",0,0,16,16);f("#c8312b",0,0,16,3);f("#fff",0,0,4,3);f("#fff",8,0,4,3);f("#7a4a24",1,3,14,12);f("#222",3,5,10,9);f("#2a1a12",5,5,6,2);f("#e8b88a",6,7,4,4);f("#e0533a",4,11,8,3);return}
+  if("gtblS".includes(ch)){
+    f(P.g,0,0,16,16);
+    if(h%3===0)f(P.g2,3,4,2,1);if(h%4===1)f(P.g2,10,11,2,1);
+    if(h===1)f(P.fl[0],8,9,2,2);if(h===5)f(P.fl[1],4,10,2,2);if(h===8)f(P.fl[2],11,5,2,2);
+  }
+  if(ch==="p"){f(P.p,0,0,16,16);f(P.p2,0,7,16,1);f(P.p2,ty%2?4:10,0,1,8);f(P.p2,ty%2?10:4,8,1,8)}
+  if(ch==="t"){f("#7a4a24",6,10,4,5);f("#2f7a34",2,1,12,10);f("#3f9a44",3,2,10,8);f("#6fc46c",5,3,3,2)}
+  if(ch==="b"){f("#7a4a24",2,10,2,4);f("#7a4a24",12,10,2,4);f("#b9722f",1,6,14,4);f("#d99a58",1,6,14,1)}
+  if(ch==="l"){f("#333",7,5,2,10);f("#555",5,13,6,2);f("#ffe27a",5,1,6,5);f("#fff6c0",6,2,2,2)}
+  if("Uua".includes(ch)){const rc=ch==="U"?["#b33a3a","#8f2a2a"]:ch==="u"?["#2e8a5a","#1f6a42"]:["#4a6a9a","#34507a"];f(rc[0],0,0,16,16);f(rc[1],0,5,16,1);f(rc[1],0,11,16,1)}
+  if("Hhjwkz".includes(ch)){const wc=[["#e9c98a","#cfa966"],["#a8d0e0","#86b4c8"],["#f0f0f0","#d0d0d0"]]["Hw".includes(ch)?0:"hk".includes(ch)?1:2];f(wc[0],0,0,16,16);f(wc[1],0,7,16,1);if("wkz".includes(ch)){f("#fff",3,2,10,11);f("#8ac4e8",4,3,8,9);f("#fff",7,3,1,9);f("#fff",4,7,8,1)}}
+  if("FRBTDWNOVKPYCXEAMG".includes(ch)){
+    if("WNCY".includes(ch)){f(P.wc||"#e8d9b5",0,0,16,16);f(P.wd||"#cbb98f",0,13,16,3)}
+    else{f(P.fc||"#c99a63",0,0,16,16);f(P.fd||"#b3834f",0,7,16,1)}
+    if(ch==="N"){f("#8ac4e8",3,3,10,7);f("#c0453f",2,2,3,9);f("#c0453f",11,2,3,9)}
+    if(ch==="C"){f("#fff",3,2,10,11);f("#d33",3,2,10,3);f("#333",5,7,6,1);f("#333",5,9,6,1)}
+    if(ch==="Y"){f("#7a4a24",3,3,10,9);f("#9ad0e8",4,4,8,7);f("#e8b88a",6,6,2,2);f("#e8b88a",9,6,2,2)}
+    if(ch==="O"){f("#6a2a2a",0,6,2,8);f("#6a2a2a",14,6,2,8);f("#8a3a3a",1,4,14,10);f("#a24c4c",1,4,14,3)}
+    if(ch==="V"){f("#444",1,3,14,11);f("#111",3,5,10,7);f(Math.sin(TM*6)>0?"#6aa8c8":"#8ac0d8",4,6,8,5);f("#222",5,0,1,3);f("#222",10,0,1,3)}
+    if(ch==="K"){f("#7a4a24",1,1,14,14);f("#c0453f",3,3,2,4);f("#3a78d8",5,3,2,4);f("#f2b630",7,3,2,4);f("#2e7d4f",9,3,2,4);f("#5a3a1a",2,8,12,1);f("#9a6ab0",3,10,2,4);f("#f1c27d",6,10,3,4);f("#d9577a",10,10,2,4)}
+    if(ch==="P"){f("#a0522d",5,10,6,5);f("#2f7a34",3,2,10,9);f("#3f9a44",5,3,6,5)}
+    if(ch==="X"){f("#8a5a3b",0,4,16,9);f("#a87348",0,4,16,2);f("#fff",5,7,3,2)}
+    if(ch==="E"){f("#a07040",3,6,10,6);f("#7a4a24",3,12,2,3);f("#7a4a24",11,12,2,3)}
+    if(ch==="A"){f("#888",7,10,2,5);f("#aaa",3,3,10,8);if(Math.floor(TM*8)%2)f("#eee",2,7,12,2);else f("#eee",7,2,2,12)}
+    if(ch==="M"){f("#3a78d8",3,9,3,5);f("#3a78d8",9,9,3,5)}
+    if(ch==="G"){f("#6a5a4a",0,8,16,7);f("#222",2,1,12,9);f(Math.sin(TM*4+tx)>0?"#4ac0e8":"#2a90c0",3,2,10,7);f("#ddd",5,12,6,2)}
+    if(ch==="R")f("#c0453f",1,1,14,14);
+    if(ch==="B"){f("#4a6ab8",0,2,16,13);f("#fff",1,3,5,4)}
+    if(ch==="T"){f("#8a5a3b",0,3,16,10);f("#a87348",0,3,16,2)}
+    if(ch==="D"){f("#7a4a24",3,0,10,16);f("#ffd84a",10,8,2,2)}
+  }
+}
+function person(x,y,o,d,fr,bo){
+  const f=(col,a,b,w,h)=>{c.fillStyle=col;c.fillRect(x+a,y+b,w,h)};
+  f("rgba(0,0,0,.25)",3,14,10,2);
+  f(o.p,4,12,3,4-(fr===1?1:0));f(o.p,9,12,3,4-(fr===2?1:0));
+  c.save();c.translate(0,bo||0);
+  f(o.t,3,8,10,5);f(o.t,2,8,2,4);f(o.t,12,8,2,4);f(o.s,2,12,2,1);f(o.s,12,12,2,1);
+  f(o.s,4,1,8,8);
+  if(d==="u"){f(o.h,4,0,8,o.long?11:8)}
+  else{
+    f(o.h,4,0,8,3);f(o.h,3,1,1,3);f(o.h,12,1,1,3);
+    if(o.long){f(o.h,3,3,1,8);f(o.h,12,3,1,8)}
+    if(d==="l")f(o.h,8,2,4,o.long?9:6);
+    if(d==="r")f(o.h,4,2,4,o.long?9:6);
+    if(d==="d"){f("#222",6,5,1,2);f("#222",9,5,1,2)}
+    if(d==="l")f("#222",5,5,1,2);
+    if(d==="r")f("#222",10,5,1,2);
+  }
+  if(o.band)f("#f2c230",4,3,8,1);c.restore();
+}
+function sign(x,y){c.fillStyle="#7a4a24";c.fillRect(x+7,y+8,2,7);c.fillStyle="#b9722f";c.fillRect(x+2,y+2,12,7);c.fillStyle="#7a4a24";c.fillRect(x+4,y+4,8,1);c.fillRect(x+4,y+6,6,1)}
+function draw(){
+  const sc=S[G.sc],p=G.p;PAL=PALS[sc.pal];
+  c.fillStyle="#000";c.fillRect(0,0,cv.width,cv.height);
+  const ix=p.mv?p.tx+(p.nx-p.tx)*p.t:p.tx,iy=p.mv?p.ty+(p.ny-p.ty)*p.t:p.ty;
+  const cx=Math.max(0,Math.min(sc.w*T-cv.width,ix*T+8-cv.width/2)),cy=Math.max(0,Math.min(sc.h*T-cv.height,iy*T+8-cv.height/2));
+  c.save();c.translate(-Math.round(cx),-Math.round(cy));
+  for(let y=0;y<sc.h;y++)for(let x=0;x<sc.w;x++)tile(sc.m[y][x],x*T,y*T,x,y);
+  (sc.labels||[]).forEach(l=>{c.font="bold 8px Courier New,monospace";c.textAlign="center";c.fillStyle="#000";c.fillText(l.t,l.x*T+1,l.y*T+1);c.fillStyle="#fff";c.fillText(l.t,l.x*T,l.y*T)});
+  const ents=(sc.npcs||[]).map(n=>({y:n.mv?n.y+(n.ny-n.y)*n.t:n.y,n}));ents.push({y:iy,me:1});
+  ents.sort((a,b)=>a.y-b.y).forEach(e=>{
+    if(e.me){person(Math.round(ix*T),Math.round(iy*T),L.me,p.d,p.mv?(p.t<.5?1:2):0,p.mv?0:br(0))}
+    else if(e.n.k==="sign")sign(e.n.x*T,e.n.y*T);
+    else if(e.n.k==="obj"){}
+    else{const m=e.n.mv,ex=m?e.n.x+(e.n.nx-e.n.x)*e.n.t:e.n.x,ey=m?e.n.y+(e.n.ny-e.n.y)*e.n.t:e.n.y;person(Math.round(ex*T),Math.round(ey*T),e.n.l,e.n.d,m?(e.n.t<.5?1:2):0,m?0:br(e.n.x*1.7+e.n.y*2.3))}
+  });
+  c.restore();
+  if(G.fade>0){c.fillStyle="rgba(0,0,0,"+Math.min(1,G.fade)+")";c.fillRect(0,0,cv.width,cv.height)}
+}
+let last=0,TM=0;
+function br(ph){return Math.sin(TM*2.2+ph)>0.15?1:0}
+function loop(t){const dt=Math.min((t-last)/1000,.05);last=t;TM=t/1000;update(dt);draw();requestAnimationFrame(loop)}
+
+/* ===== INPUT ===== */
+const KM={w:"u",arrowup:"u",s:"d",arrowdown:"d",a:"l",arrowleft:"l",d:"r",arrowright:"r"};
+function press(d){
+  if(G.mode==="choose"){if(d==="u")setSel((G.sel+G.opts.length-1)%G.opts.length);if(d==="d")setSel((G.sel+1)%G.opts.length);return}
+  const i=held.indexOf(d);if(i>-1)held.splice(i,1);held.push(d);
+}
+function release(d){const i=held.indexOf(d);if(i>-1)held.splice(i,1)}
+addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  if(k==="escape"){if(G.mode==="pause")closePause();else openPause();return}
+  if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(k))e.preventDefault();
+  if(KM[k]){if(!e.repeat)press(KM[k])}
+  else if(e.repeat)return;
+  else if(k==="e"||k===" "||k==="enter")act();
+  else if(G.mode==="choose"&&/^[1-9]$/.test(k)&&G.opts[+k-1])pick(+k-1);
+});
+addEventListener("keyup",e=>{const d=KM[e.key.toLowerCase()];if(d)release(d)});
+addEventListener("blur",()=>{held.length=0});
+$("game").addEventListener("click",()=>{if(G.mode!=="choose")act()});
+document.querySelectorAll("#dp button").forEach(b=>{
+  b.addEventListener("pointerdown",e=>{e.preventDefault();press(b.dataset.k)});
+  ["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,()=>release(b.dataset.k)));
+});
+$("abtn").addEventListener("pointerdown",e=>{e.preventDefault();act()});
+
+/* ===== START ===== */
+function begin(){talk("Welcome",["Welcome to Tracing the Pop! Digital Game Museum.","Move with W, A, S, D or the arrow keys. Press E, Space, Enter, or click to talk and interact.","Talk to everyone you meet, and remember you can always walk back to the left."])}
+/* ===== AUDIO ===== */
+const AU={c:null,on:true,t:null,i:0};
+const TRK=[{ms:260,mel:[72,0,76,0,79,0,76,0,74,0,77,0,81,0,77,0,72,0,76,0,79,0,84,0,83,0,79,0,76,0,0,0],bas:[48,0,55,0,53,0,57,0,48,0,55,0,53,0,55,0]}];
+const hz=n=>440*Math.pow(2,(n-69)/12);
+function tone(f,d,ty,v,del){const x=AU.c;if(!x||!AU.on)return;const o=x.createOscillator(),g=x.createGain(),t0=x.currentTime+(del||0);o.type=ty;o.frequency.value=f;g.gain.setValueAtTime(v,t0);g.gain.exponentialRampToValueAtTime(.0001,t0+d);o.connect(g);g.connect(x.destination);o.start(t0);o.stop(t0+d+.02)}
+function sfx(k){
+  if(k==="blip")tone(260+Math.random()*60,.05,"square",.03);
+  if(k==="sel")tone(660,.05,"square",.04);
+  if(k==="ok"){tone(520,.06,"square",.05);tone(780,.08,"square",.05,.07)}
+  if(k==="door"){tone(200,.12,"triangle",.1);tone(300,.14,"triangle",.1,.1)}
+  if(k==="step")tone(90,.04,"triangle",.05);
+}
+function musicTick(){const t=TRK[0],m=t.mel[AU.i%t.mel.length],b=t.bas[Math.floor(AU.i/2)%t.bas.length];if(m)tone(hz(m),.22,"square",.025);if(b&&AU.i%2===0)tone(hz(b),.45,"triangle",.05);AU.i++}
+function audioInit(){if(!AU.c)AU.c=new(window.AudioContext||window.webkitAudioContext)();AU.c.resume();if(!AU.t)AU.t=setInterval(musicTick,TRK[0].ms)}
+
+/* ===== TITLE AND PAUSE ===== */
+const vis=(id,v)=>{$(id).style.display=v?"flex":"none"};
+$("bStart").onclick=()=>{audioInit();vis("title",0);G.mode="play";begin()};
+$("bCred").onclick=()=>{vis("title",0);vis("cred",1)};
+$("cBack").onclick=()=>{vis("cred",0);vis("title",1)};
+function openPause(){if(G.mode!=="play")return;held.length=0;G.mode="pause";vis("pause",1)}
+function closePause(){vis("pause",0);vis("help",0);if(G.mode==="pause")G.mode="play"}
+$("pCont").onclick=closePause;
+$("pHelp").onclick=()=>{$("hp").innerHTML="Move: W A S D or the arrow keys.<br>Talk and interact: E, Space, Enter, or click.<br>Pause: Esc or the ☰ button.<br><br>"+($("hud").textContent||"Goal: Explore and talk to everyone.");vis("pause",0);vis("help",1)};
+$("hBack").onclick=()=>{vis("help",0);vis("pause",1)};
+$("pMus").onclick=()=>{AU.on=!AU.on;$("pMus").textContent="Music and sound: "+(AU.on?"On":"Off")};
+$("pQuit").onclick=()=>location.reload();
+$("mbtn").onclick=()=>{if(G.mode==="pause")closePause();else openPause()};
+requestAnimationFrame(loop);
+</script>
 </body>
 </html>
